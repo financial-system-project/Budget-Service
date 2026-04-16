@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: budget-service
+  namespace: bank-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: budget-service
+  template:
+    metadata:
+      labels:
+        app: budget-service
+    spec:
+      containers:
+        - name: budget-service
+          image: budget-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_HOST
+              value: postgres-budget
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-budget-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-budget-secret
+                  key: POSTGRES_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: budget-service
+  namespace: bank-app
+spec:
+  selector:
+    app: budget-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-budget-config
+  namespace: bank-app
+data:
+  POSTGRES_DB: budgetdb
+  POSTGRES_USER: admin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-budget-secret
+  namespace: bank-app
+type: Opaque
+stringData:
+  POSTGRES_USER: admin
+  POSTGRES_PASSWORD: secret123
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-budget
+  namespace: bank-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-budget
+  template:
+    metadata:
+      labels:
+        app: postgres-budget
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: postgres-budget-config
+            - secretRef:
+                name: postgres-budget-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-budget
+  namespace: bank-app
+spec:
+  selector:
+    app: postgres-budget
+  ports:
+    - port: 5432
+      targetPort: 5432

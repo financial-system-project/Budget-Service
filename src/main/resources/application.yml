@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: budget-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/budgetdb
+    username: ${DB_USER:admin}
+    password: ${DB_PASSWORD:secret123}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+transaction:
+  service:
+    url: http://transaction-service:8080
+notification:
+  service:
+    url: http://notification-service:8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
