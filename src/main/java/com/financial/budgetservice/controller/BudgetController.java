@@ -59,6 +59,15 @@ public class BudgetController {
         return budgetRepository.findByUserIdAndYearAndMonth(userId, year, month);
     }
 
+    @PostMapping("/{id}/spending")
+    public ResponseEntity<Budget> updateSpending(@PathVariable Long id, @RequestBody Map<String, BigDecimal> body) {
+        return budgetRepository.findById(id).map(budget -> {
+            budget.setCurrentSpending(body.get("amount"));
+            return ResponseEntity.ok(budgetRepository.save(budget));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+
     @PutMapping("/{id}")
     public ResponseEntity<Budget> updateBudget(@PathVariable Long id, @RequestBody BudgetRequest request) {
         return budgetRepository.findById(id)
