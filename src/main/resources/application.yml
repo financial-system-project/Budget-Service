@@ -1,13 +1,13 @@
 server:
-  port: 8080
+  port: 8083
 
 spring:
   application:
     name: budget-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/budgetdb
-    username: ${DB_USER:admin}
-    password: ${DB_PASSWORD:secret123}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
@@ -17,10 +17,10 @@ spring:
 
 transaction:
   service:
-    url: http://transaction-service:8080
+    url: http://transaction-service:8082
 notification:
   service:
-    url: http://notification-service:8080
+    url: http://notification-service:8084
 
 management:
   endpoints:
