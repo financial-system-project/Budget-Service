@@ -59,7 +59,7 @@ pipeline {
                 script {
 
                     // previous build number
-                    def PREVIOUS_BUILD = env.BUILD_NUMBER.toInteger() - 1
+                    def PREVIOUS_BUILD = env.BUILD_NUMBER.toInteger() - 2
 
                     // delete previous image if exists
                     sh """
@@ -94,7 +94,7 @@ pipeline {
 
                         git add values.yaml
 
-                        git commit -m "Updated image tag to ${BUILD_NUMBER}"
+                        git commit -m "Updated image tag to ${BUILD_NUMBER} in Budget service"
 
                         git push https://\$GITHUB_TOKEN@github.com/financial-system-project/GitOps.git main
                     """
