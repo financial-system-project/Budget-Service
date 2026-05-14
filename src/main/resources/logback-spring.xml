@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ── Default (local dev): plain console logs ── -->
+    <springProfile name="!k8s">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ── k8s profile: JSON to stdout + TCP to Logstash ── -->
+    <springProfile name="k8s">
+
+        <!-- JSON stdout so kubectl logs are readable without Kibana -->
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <loggerName/>
+                    <threadName/>
+                    <message/>
+                    <stackTrace/>
+                    <mdc/>
+                    <arguments/>
+                    <!-- static service metadata injected into every log line -->
+                    <pattern>
+                        <pattern>{"service": "budget-service", "env": "k8s"}</pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+
+        <!-- Async TCP appender → Logstash :5000 -->
+        <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+            <!-- LOGSTASH_HOST is injected via ConfigMap; falls back to the in-cluster DNS name -->
+            <destination>${LOGSTASH_HOST:-logstash.logging:5000}</destination>
+            <keepAliveDuration>5 minutes</keepAliveDuration>
+            <reconnectionDelay>10 seconds</reconnectionDelay>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <loggerName/>
+                    <threadName/>
+                    <message/>
+                    <stackTrace/>
+                    <mdc/>
+                    <arguments/>
+                    <pattern>
+                        <pattern>{"service": "budget-service", "env": "k8s"}</pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+
+        <!-- Wrap in async to avoid blocking request threads -->
+        <appender name="ASYNC_LOGSTASH" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="LOGSTASH"/>
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+            <appender-ref ref="ASYNC_LOGSTASH"/>
+        </root>
+
+        <!-- Reduce noise from Hibernate / Spring internals -->
+        <logger name="org.hibernate.SQL"            level="WARN"/>
+        <logger name="org.springframework.web"      level="INFO"/>
+        <logger name="com.financial.budgetservice"  level="DEBUG"/>
+    </springProfile>
+
+</configuration>
