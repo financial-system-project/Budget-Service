@@ -68,7 +68,6 @@
                     </pattern>
                 </providers>
             </encoder>
-            </encoder>
         </appender>
 
         <!-- Wrap in async to avoid blocking request threads -->
