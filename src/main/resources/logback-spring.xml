@@ -18,7 +18,7 @@
 
         <!-- JSON stdout so kubectl logs are readable without Kibana -->
         <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                 <providers>
                     <timestamp/>
                     <logLevel/>
@@ -28,9 +28,14 @@
                     <stackTrace/>
                     <mdc/>
                     <arguments/>
-                    <!-- static service metadata injected into every log line -->
+
                     <pattern>
-                        <pattern>{"service": "budget-service", "env": "k8s"}</pattern>
+                        <pattern>
+                            {
+                            "service":"budget-service",
+                            "env":"k8s"
+                            }
+                        </pattern>
                     </pattern>
                 </providers>
             </encoder>
@@ -42,7 +47,7 @@
             <destination>${LOGSTASH_HOST:-logstash.logging:5000}</destination>
             <keepAliveDuration>5 minutes</keepAliveDuration>
             <reconnectionDelay>10 seconds</reconnectionDelay>
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                 <providers>
                     <timestamp/>
                     <logLevel/>
@@ -52,10 +57,17 @@
                     <stackTrace/>
                     <mdc/>
                     <arguments/>
+
                     <pattern>
-                        <pattern>{"service": "budget-service", "env": "k8s"}</pattern>
+                        <pattern>
+                            {
+                            "service":"budget-service",
+                            "env":"k8s"
+                            }
+                        </pattern>
                     </pattern>
                 </providers>
+            </encoder>
             </encoder>
         </appender>
 
