@@ -3,6 +3,7 @@ package com.financial.budgetservice.controller;
 import com.financial.budgetservice.dto.BudgetRequest;
 import com.financial.budgetservice.entity.Budget;
 import com.financial.budgetservice.repository.BudgetRepository;
+import com.financial.budgetservice.service.BudgetMonitoringService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,10 +17,12 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/budgets")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class BudgetController {
 
     private final BudgetRepository budgetRepository;
+    private final BudgetMonitoringService budgetMonitoringService;
 
     @GetMapping("/health")
     public Map<String, String> health() {
@@ -45,8 +48,7 @@ public class BudgetController {
                 .year(request.getYear())
                 .alertThreshold(request.getAlertThreshold())
                 .build();
-        Budget saved = budgetRepository.save(budget);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(budgetRepository.save(budget));
     }
 
     @GetMapping("/user/{userId}")
@@ -55,21 +57,62 @@ public class BudgetController {
     }
 
     @GetMapping("/user/{userId}/month/{year}/{month}")
-    public List<Budget> getMonthlyBudgets(@PathVariable Long userId, @PathVariable Integer year, @PathVariable Integer month) {
+    public List<Budget> getMonthlyBudgets(@PathVariable Long userId,
+                                          @PathVariable Integer year,
+                                          @PathVariable Integer month) {
         return budgetRepository.findByUserIdAndYearAndMonth(userId, year, month);
     }
 
+    /** Directly set currentSpending to an absolute value */
     @PostMapping("/{id}/spending")
-    public ResponseEntity<Budget> updateSpending(@PathVariable Long id, @RequestBody Map<String, BigDecimal> body) {
+    public ResponseEntity<Budget> updateSpending(@PathVariable Long id,
+                                                 @RequestBody Map<String, BigDecimal> body) {
         return budgetRepository.findById(id).map(budget -> {
             budget.setCurrentSpending(body.get("amount"));
             return ResponseEntity.ok(budgetRepository.save(budget));
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * FIX: Add an amount to currentSpending instead of overwriting it.
+     * Call this after every transaction to keep budgets in sync without waiting
+     * for the 5-minute scheduler — useful for the live demo.
+     *
+     * POST /api/budgets/{id}/spending/add   body: {"amount": 50.00}
+     */
+    @PostMapping("/{id}/spending/add")
+    public ResponseEntity<Budget> addSpending(@PathVariable Long id,
+                                              @RequestBody Map<String, BigDecimal> body) {
+        BigDecimal toAdd = body.get("amount");
+        if (toAdd == null || toAdd.compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().build();
+        }
+        return budgetRepository.findById(id).map(budget -> {
+            BigDecimal current = budget.getCurrentSpending() != null
+                    ? budget.getCurrentSpending() : BigDecimal.ZERO;
+            budget.setCurrentSpending(current.add(toAdd));
+            Budget saved = budgetRepository.save(budget);
+            // Immediately check alert threshold after each spend update
+            budgetMonitoringService.checkBudgetAlerts();
+            return ResponseEntity.ok(saved);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * FIX: Manually trigger the full spending recalculation from Transaction-Service.
+     * Handy for the demo — no need to wait 5 minutes.
+     *
+     * POST /api/budgets/sync
+     */
+    @PostMapping("/sync")
+    public ResponseEntity<Map<String, String>> syncSpending() {
+        budgetMonitoringService.updateBudgetSpending();
+        return ResponseEntity.ok(Map.of("status", "sync triggered"));
+    }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Budget> updateBudget(@PathVariable Long id, @RequestBody BudgetRequest request) {
+    public ResponseEntity<Budget> updateBudget(@PathVariable Long id,
+                                               @RequestBody BudgetRequest request) {
         return budgetRepository.findById(id)
                 .map(budget -> {
                     budget.setMonthlyLimit(request.getMonthlyLimit());

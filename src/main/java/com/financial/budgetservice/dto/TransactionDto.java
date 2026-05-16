@@ -9,9 +9,15 @@ public class TransactionDto {
     private Long id;
     private Long fromAccountId;
     private Long toAccountId;
+
+    // FIX: Now populated by Transaction-Service after the entity was updated
+    private Long userId;
+
+    // FIX: Category field — matches budget categories (e.g. "FOOD", "RENT", "TRANSFER")
+    private String category;
+
     private BigDecimal amount;
     private String status;
     private LocalDateTime createdAt;
-    // We'll need to map category via account type or separate metadata
-    // For simplicity, we'll assume transaction category is derived from account type
+    private LocalDateTime completedAt;
 }
