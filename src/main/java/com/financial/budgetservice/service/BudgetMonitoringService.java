@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,22 +25,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BudgetMonitoringService {
 
+    // 0.25 hours = 15 minutes — int can't hold 0.25, so store in minutes instead
+    private static final int ALERT_COOLDOWN_MINUTES = 10;
+
     private final BudgetRepository budgetRepository;
     private final TransactionServiceClient transactionServiceClient;
     private final NotificationServiceClient notificationServiceClient;
 
-    /**
-     * FIX: Completely rewritten.
-     *
-     * Previous bug: passed null as userId to findByUserIdAndYearAndMonth() which
-     * caused a NullPointerException or silently returned no results.
-     *
-     * New logic:
-     *  1. Load ALL current-month budgets (no userId filter needed here).
-     *  2. Group them by userId.
-     *  3. For each userId, fetch only their COMPLETED transactions from Transaction-Service.
-     *  4. Sum spending per category and update each matching budget's currentSpending.
-     */
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     @Transactional
     public void updateBudgetSpending() {
@@ -103,11 +95,8 @@ public class BudgetMonitoringService {
         log.info("Budget spending update complete. Processed {} users.", budgetsByUser.size());
     }
 
-    /**
-     * Check all budgets and fire a notification for any that have hit their alert threshold.
-     * Runs every minute. No changes needed here — the query in BudgetRepository is correct.
-     */
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 60000) // Every 1 minute
+    @Transactional
     public void checkBudgetAlerts() {
         List<Budget> exceededBudgets = budgetRepository.findBudgetsExceedingThreshold();
 
@@ -116,6 +105,17 @@ public class BudgetMonitoringService {
         log.info("Found {} budget(s) at or above alert threshold", exceededBudgets.size());
 
         for (Budget budget : exceededBudgets) {
+
+            // FIX: Skip if an alert was already sent within the cooldown window.
+            // This is what was missing — without this check the scheduler fires
+            // an identical notification every 60 seconds indefinitely.
+            if (budget.getAlertSentAt() != null &&
+                    budget.getAlertSentAt().isAfter(LocalDateTime.now().minusMinutes(ALERT_COOLDOWN_MINUTES))) {
+                log.debug("Skipping alert for budget id={} — last sent at {}, cooldown={}min",
+                        budget.getId(), budget.getAlertSentAt(), ALERT_COOLDOWN_MINUTES);
+                continue;
+            }
+
             BigDecimal pct = budget.getCurrentSpending()
                     .divide(budget.getMonthlyLimit(), 4, RoundingMode.HALF_UP)
                     .multiply(new BigDecimal("100"));
@@ -133,6 +133,11 @@ public class BudgetMonitoringService {
 
             try {
                 notificationServiceClient.sendNotification(request);
+
+                // FIX: Stamp the time so we don't send again until cooldown expires
+                budget.setAlertSentAt(LocalDateTime.now());
+                budgetRepository.save(budget);
+
                 log.info("Budget alert sent → userId={} category={} pct={}%",
                         budget.getUserId(), budget.getCategory(), pct);
             } catch (Exception e) {

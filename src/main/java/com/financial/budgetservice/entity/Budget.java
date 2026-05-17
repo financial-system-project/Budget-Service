@@ -45,6 +45,12 @@ public class Budget {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // FIX: Tracks when the last alert was sent for this budget.
+    // checkBudgetAlerts() only fires a new notification if no alert
+    // has been sent in the last 6 hours — stops the per-minute spam.
+    @Column(name = "alert_sent_at")
+    private LocalDateTime alertSentAt;
+
     @PrePersist
     @PreUpdate
     protected void onUpdate() {
